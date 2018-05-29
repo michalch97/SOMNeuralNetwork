@@ -47,7 +47,7 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
     private PlotFrame endFrame;
 
     private ArrayList<ArrayList<RealVector>> imageInputs;
-    private int pixelSquareSide = 3;
+    private int pixelSquareSide = 1;
     private int originalImageHeight;
     private int originalImageWidth;
     private int originalImageType;
@@ -489,14 +489,51 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
         return distance;
     }
 
+    private RealVector findInputMin() {
+        RealVector minValues = new ArrayRealVector(2);
+        
+        for (int i = 0; i < 2; i++) {// x y
+            double min = inputs.get(0).getEntry(i);
+            for (RealVector input : inputs) {
+                if (min < input.getEntry(i)) {
+                    min = input.getEntry(i);
+                }
+            }
+            
+            minValues.setEntry(i, min);
+        }
+        
+        return minValues;
+    }
+    
+    private RealVector findInputMax() {
+        RealVector minValues = new ArrayRealVector(2);
+        
+        for (int i = 0; i < 2; i++) {// x y
+            double max = inputs.get(0).getEntry(i);
+            for (RealVector input : inputs) {
+                if (max > input.getEntry(i)) {
+                    max = input.getEntry(i);
+                }
+            }
+            
+            minValues.setEntry(i, max);
+        }
+        
+        return minValues;
+    }
+    
     private void kMeans() {
         plotPoints();
         double[][] arrayOfWeights = new double[groups][2];
 
         Random random = new Random();
         for (int i = 0; i < groups; i++) {
-            arrayOfWeights[i][0] = random.nextDouble() - 0.5;
-            arrayOfWeights[i][1] = random.nextDouble() - 0.5;
+            RealVector min = findInputMin();
+            RealVector max = findInputMax();
+            
+            arrayOfWeights[i][0] = random.nextDouble() * (max.getEntry(0) - min.getEntry(0)) + min.getEntry(0);
+            arrayOfWeights[i][1] = random.nextDouble() * (max.getEntry(1) - min.getEntry(1)) + min.getEntry(1);
         }
 
         weights = new Array2DRowRealMatrix(arrayOfWeights);
@@ -556,8 +593,11 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
         double[][] arrayOfWeights = new double[groups * groups][2];
         Random random = new Random();
         for (int i = 0; i < groups * groups; i++) {
-            arrayOfWeights[i][0] = random.nextDouble() - 0.5;
-            arrayOfWeights[i][1] = random.nextDouble() - 0.5;
+            RealVector min = findInputMin();
+            RealVector max = findInputMax();
+            
+            arrayOfWeights[i][0] = random.nextDouble() * (max.getEntry(0) - min.getEntry(0)) + min.getEntry(0);
+            arrayOfWeights[i][1] = random.nextDouble() * (max.getEntry(1) - min.getEntry(1)) + min.getEntry(1);
         }
 
         weights = new Array2DRowRealMatrix(arrayOfWeights);
@@ -608,8 +648,11 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
 
         Random random = new Random();
         for (int i = 0; i < groups; i++) {
-            arrayOfWeights[i][0] = random.nextDouble() - 0.5;
-            arrayOfWeights[i][1] = random.nextDouble() - 0.5;
+            RealVector min = findInputMin();
+            RealVector max = findInputMax();
+            
+            arrayOfWeights[i][0] = random.nextDouble() * (max.getEntry(0) - min.getEntry(0)) + min.getEntry(0);
+            arrayOfWeights[i][1] = random.nextDouble() * (max.getEntry(1) - min.getEntry(1)) + min.getEntry(1);
         }
 
         weights = new Array2DRowRealMatrix(arrayOfWeights);
