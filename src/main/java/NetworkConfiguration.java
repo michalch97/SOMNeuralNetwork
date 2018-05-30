@@ -336,14 +336,15 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
             return;
         }
 
-        double[][] arrayOfWeights = new double[groups * groups][imageInputs.get(0).get(0).getDimension()];
+        double[][] arrayOfWeights = new double[groups][imageInputs.get(0).get(0).getDimension()];
         Random random = new Random();
-        for (int i = 0; i < groups * groups; i++) {
+        for (int i = 0; i < groups; i++) {
             for (int j = 0; j < arrayOfWeights[0].length; j++) {
                 arrayOfWeights[i][j] = random.nextDouble();
             }
         }
 
+        long startTime = System.currentTimeMillis();
         weights = new Array2DRowRealMatrix(arrayOfWeights);
         for (int currentEpoch = 0; (currentEpoch < epochLimit) && (!isCancelled()); currentEpoch++) {
             System.out.println(currentEpoch);
@@ -356,7 +357,7 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
             for (ArrayList<RealVector> frameOfPixels : imageInputs) {
                 double minDistance = getDistanceFromColorFrame(weights.getRowVector(0), frameOfPixels);
                 int index = 0;
-                for (int i = 1; i < groups * groups; i++) {
+                for (int i = 1; i < groups; i++) {
                     double currentDistance = getDistanceFromColorFrame(weights.getRowVector(i), frameOfPixels);
                     if (currentDistance < minDistance) {
                         minDistance = currentDistance;
@@ -364,23 +365,35 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
                     }
                 }
 
-                int BMUx = (index % groups);
-                int BMUy = (index / groups);
-                for (int i = 0; i < groups * groups; i++) {
+                List<Pair<Integer, Double>> seriesOfDistance = new ArrayList<>();
+                for (int i = 0; i < groups; i++) {
                     RealVector weight = weights.getRowVector(i);
-                    double distanceBetweenBMUAndNeighbourhood = weight.getDistance(weights.getRowVector(index));
+                    seriesOfDistance.add(i, new Pair<>(i, weight.getDistance(weights.getRowVector(index))));
+                }
 
-                    int neuronX = (i % groups);
-                    int neuronY = (i / groups);
-                    double neighbourDistance = (BMUy - neuronY) * (BMUy - neuronY) + (BMUx - neuronX) * (BMUx - neuronX);
-                    neighbourDistance = Math.sqrt(neighbourDistance);
+                seriesOfDistance.sort(new Comparator<Pair<Integer, Double>>() {
+                    @Override
+                    public int compare(Pair<Integer, Double> p1, Pair<Integer, Double> p2) {
+                        return p1.getSecond() < p2.getSecond() ? -1 : p1.getSecond() == p2.getSecond() ? 0 : 1;
+                    }
+                });
 
-                    if (neighbourDistance < currentRadius) {
-                        weights.setRowVector(i, calculateUpdateForPixels(frameOfPixels, weight, distanceBetweenBMUAndNeighbourhood));
+                for (int i = 0; i < groups; i++) {
+                    RealVector weight = weights.getRowVector(i);
+                    int positionInSeries = 0;
+                    for (int k = 0; k < seriesOfDistance.size(); k++) {
+                        if (seriesOfDistance.get(k).getFirst() == i) {
+                            positionInSeries = k;
+                        }
+                    }
+
+                    if (seriesOfDistance.get(positionInSeries).getSecond() < currentRadius) {
+                        weights.setRowVector(i, calculateUpdateForPixels(frameOfPixels, weight, positionInSeries));
                     }
                 }
             }
         }
+        System.out.println("Execution time: " + (System.currentTimeMillis() - startTime) + "ms");
 
         ArrayList<Color> framesColors = assignFramesToGroups(imageInputs, weights);
         //ArrayList<Color> framesColors = assignFramesToGroupsMockup(imageInputs, weights);
@@ -404,7 +417,7 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
         for (ArrayList<RealVector> frameOfPixels : imageInputs) {
             double minDistance = getDistanceFromColorFrame(neurons.getRowVector(0), frameOfPixels);
             int index = 0;
-            for (int i = 1; i < groups * groups; i++) {
+            for (int i = 1; i < groups; i++) {
                 double currentDistance = getDistanceFromColorFrame(neurons.getRowVector(i), frameOfPixels);
                 if (currentDistance < minDistance) {
                     minDistance = currentDistance;
