@@ -51,7 +51,10 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
     private int originalImageHeight;
     private int originalImageWidth;
     private int originalImageType;
+    private int pixelByteSize = 0;
     private String imageOutputPath = "quantizedImage.png";
+    
+    List<RealVector> listOfWeights; // for image compression
 
     private final int pointsCount = 1000;
     private final Rectangle shapeBounds = new Rectangle(-5, -5, 10, 10);
@@ -310,6 +313,7 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
                                 }
                             }
                         }
+                        pixelByteSize = imageInputs.get(0).get(0).getDimension();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -336,12 +340,14 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
             return;
         }
 
-        double[][] arrayOfWeights = new double[groups][imageInputs.get(0).get(0).getDimension()];
+        double[][] arrayOfWeights = new double[groups][pixelByteSize];
+        listOfWeights = new ArrayList<RealVector>();
         Random random = new Random();
         for (int i = 0; i < groups; i++) {
             for (int j = 0; j < arrayOfWeights[0].length; j++) {
                 arrayOfWeights[i][j] = random.nextDouble();
             }
+            listOfWeights.add(new ArrayRealVector(arrayOfWeights[i]));
         }
 
         long startTime = System.currentTimeMillis();
@@ -353,22 +359,22 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
                 currentLearningRate = calculateCurrentLearningRate(currentEpoch);
                 currentRadius = calculateCurrentRadius(currentEpoch);
             }
-
+            
             for (ArrayList<RealVector> frameOfPixels : imageInputs) {
-                double minDistance = getDistanceFromColorFrame(weights.getRowVector(0), frameOfPixels);
+                double minDistance = Double.MAX_VALUE;
+                List<Pair<Integer, Double>> seriesOfDistance = new ArrayList<>();
                 int index = 0;
-                for (int i = 1; i < groups; i++) {
-                    double currentDistance = getDistanceFromColorFrame(weights.getRowVector(i), frameOfPixels);
+                for (int i = 0; i < groups; i++) {
+                    double currentDistance = getDistanceFromColorFrame(listOfWeights.get(i), frameOfPixels);
                     if (currentDistance < minDistance) {
                         minDistance = currentDistance;
                         index = i;
                     }
                 }
 
-                List<Pair<Integer, Double>> seriesOfDistance = new ArrayList<>();
                 for (int i = 0; i < groups; i++) {
-                    RealVector weight = weights.getRowVector(i);
-                    seriesOfDistance.add(i, new Pair<>(i, weight.getDistance(weights.getRowVector(index))));
+                    RealVector weight = listOfWeights.get(i);
+                    seriesOfDistance.add(i, new Pair<>(i, weight.getDistance(listOfWeights.get(index))));
                 }
 
                 seriesOfDistance.sort(new Comparator<Pair<Integer, Double>>() {
@@ -379,36 +385,30 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
                 });
 
                 for (int i = 0; i < groups; i++) {
-                    RealVector weight = weights.getRowVector(i);
+                    RealVector weight = listOfWeights.get(i);
                     int positionInSeries = 0;
                     for (int k = 0; k < seriesOfDistance.size(); k++) {
                         if (seriesOfDistance.get(k).getFirst() == i) {
                             positionInSeries = k;
+                            break;
                         }
                     }
 
                     if (seriesOfDistance.get(positionInSeries).getSecond() < currentRadius) {
-                        weights.setRowVector(i, calculateUpdateForPixels(frameOfPixels, weight, positionInSeries));
+                        listOfWeights.set(i, calculateUpdateForPixels(frameOfPixels, weight, positionInSeries));
                     }
                 }
             }
         }
         System.out.println("Execution time: " + (System.currentTimeMillis() - startTime) + "ms");
 
-        ArrayList<Color> framesColors = assignFramesToGroups(imageInputs, weights);
-        //ArrayList<Color> framesColors = assignFramesToGroupsMockup(imageInputs, weights);
-        saveQuantizedImage(framesColors);
-    }
-
-    private ArrayList<Color> assignFramesToGroupsMockup(ArrayList<ArrayList<RealVector>> imageFrames, RealMatrix neurons) {
-        ArrayList<Color> framesColors = new ArrayList<Color>();
-
-        for (ArrayList<RealVector> frameOfPixels : imageInputs) {
-            Color frameColor = getColorFromVector(frameOfPixels.get(0));
-            framesColors.add(frameColor);
+        weights = new Array2DRowRealMatrix(listOfWeights.size(), pixelByteSize);
+        for (int i = 0; i < listOfWeights.size(); i++) {
+            weights.setRowVector(i, listOfWeights.get(i));
         }
-
-        return framesColors;
+        
+        ArrayList<Color> framesColors = assignFramesToGroups(imageInputs, weights);
+        saveQuantizedImage(framesColors);
     }
 
     private ArrayList<Color> assignFramesToGroups(ArrayList<ArrayList<RealVector>> imageFrames, RealMatrix neurons) {

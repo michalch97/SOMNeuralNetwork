@@ -5,4 +5,5 @@ target/
 .project
 *.jar
 *.iml
+*.png
 ./**/desktop.ini
