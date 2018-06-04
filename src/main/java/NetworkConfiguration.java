@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -407,11 +408,13 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
             weights.setRowVector(i, listOfWeights.get(i));
         }
         
-        ArrayList<Color> framesColors = assignFramesToGroups(imageInputs, weights);
+        ArrayList<Integer> neuronIndexesForFrames = new ArrayList<Integer>();
+        ArrayList<Color> framesColors = assignFramesToGroups(imageInputs, weights, neuronIndexesForFrames);
         saveQuantizedImage(framesColors);
+        saveColorDictionary(neuronIndexesForFrames);
     }
 
-    private ArrayList<Color> assignFramesToGroups(ArrayList<ArrayList<RealVector>> imageFrames, RealMatrix neurons) {
+    private ArrayList<Color> assignFramesToGroups(ArrayList<ArrayList<RealVector>> imageFrames, RealMatrix neurons, ArrayList<Integer> neuronIndexesForFrames) {
         ArrayList<Color> framesColors = new ArrayList<Color>();
 
         for (ArrayList<RealVector> frameOfPixels : imageInputs) {
@@ -425,6 +428,8 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
                 }
             }
 
+            neuronIndexesForFrames.add(index);
+            
             Color frameColor = getColorFromVector(neurons.getRowVector(index));
             framesColors.add(frameColor);
         }
@@ -487,6 +492,56 @@ public class NetworkConfiguration extends SwingWorker<Void, RealMatrix> {
         File outputFile = new File(imageOutputPath);
         try {
             ImageIO.write(outputImageBuffer, "png", outputFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private void saveColorDictionary(ArrayList<Integer> neuronIndexesForFrames) {
+        File outputFile = new File("paletaKolorow.txt");
+        try (FileWriter writer = new FileWriter(outputFile);) {
+            switch (originalImageType) {
+            case BufferedImage.TYPE_3BYTE_BGR:
+                writer.write("Kolejność: BGR \n");
+                break;
+            case BufferedImage.TYPE_4BYTE_ABGR:
+                writer.write("Kolejność: ABGR \n");
+                break;
+            case BufferedImage.TYPE_BYTE_GRAY:
+                writer.write("Odcienie szarosci \n");
+                break;
+            default:
+                writer.write("Nieznana kolejność \n");
+                break;
+            }
+            
+            for (int index = 0; index < weights.getRowDimension(); index++) {
+                RealVector weightColor = weights.getRowVector(index);
+                StringBuilder builder = new StringBuilder();
+                
+                builder.append(Integer.toString(index));
+                for (int i = 0; i < weightColor.getDimension(); i++) {
+                    builder.append(" ");
+                    builder.append((int)weightColor.getEntry(i));
+                }
+                
+                builder.append("\n");
+                writer.write(builder.toString());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+        File outputFileForIndexes = new File("indeksyKolorow.txt");
+        try (FileWriter writer = new FileWriter(outputFileForIndexes);){
+            for (int index = 0; index < neuronIndexesForFrames.size(); index++) {
+                StringBuilder builder = new StringBuilder();
+                builder.append(Integer.toString(index));
+                builder.append(": ");
+                builder.append(neuronIndexesForFrames.get(index));
+                builder.append("\n");
+                writer.write(builder.toString());
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

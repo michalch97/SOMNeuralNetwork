@@ -6,4 +6,5 @@ target/
 *.jar
 *.iml
 *.png
+*.txt
 ./**/desktop.ini
